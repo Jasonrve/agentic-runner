@@ -2,7 +2,7 @@
   "name": "agentic-runner",
   "version": "1.0.0",
   "private": false,
-  "description": "Generic GitHub Action for LLM workflows, injected context, and PR comment reports",
+  "description": "Generic GitHub Action for LLM workflows, injected context, and PR comments",
   "license": "MIT",
   "main": "dist/index.js",
   "scripts": {

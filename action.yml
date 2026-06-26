@@ -1,5 +1,5 @@
 name: agentic-runner
-description: Call an OpenAI-compatible LLM or a precomputed workflow report, render a clean Markdown summary, and optionally upsert it as a PR comment.
+description: Call an OpenAI-compatible LLM with injected context, render a concise PR comment, and optionally upsert it as a PR comment.
 
 inputs:
   prompt:
@@ -34,7 +34,7 @@ inputs:
     required: false
     default: "true"
   fail_on_findings:
-    description: Fail the step when the generated report contains findings or a non-pass verdict.
+    description: Fail the step when the generated response signals attention or blocking issues.
     required: false
     default: "false"
   comment_marker:
@@ -46,7 +46,7 @@ inputs:
     required: false
     default: "false"
   mock_response_file:
-    description: Optional path to a file containing a raw JSON report or OpenAI-style response payload for tests and local validation.
+    description: Optional path to a file containing a raw JSON response payload for tests and local validation.
     required: false
     default: ""
   context_mode:
@@ -71,10 +71,10 @@ inputs:
     default: "1"
 
 outputs:
-  verdict:
-    description: The parsed verdict from the model.
-  finding_count:
-    description: Number of findings in the report.
+  signal:
+    description: Signal from the model response.
+  answer:
+    description: Direct answer text rendered into the comment.
   comment_body:
     description: Rendered Markdown comment body.
   comment_url:

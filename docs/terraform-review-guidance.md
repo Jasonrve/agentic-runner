@@ -1,10 +1,10 @@
 # Terraform review guidance
 
-The demo workflow scans the example Terraform fixture and highlights the most important findings in a PR comment.
+The demo workflow answers a question about the example Terraform fixture and writes a direct PR comment.
 
 Demo rules:
 
 - flag any public ingress exposure from `0.0.0.0/0`
 - flag missing `owner` tags on resources
-- keep the report short and actionable
+- keep the answer short and actionable
 - prefer one PR comment that gets updated on reruns instead of creating duplicates

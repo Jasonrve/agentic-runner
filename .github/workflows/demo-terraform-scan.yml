@@ -1,4 +1,4 @@
-name: Demo Terraform scan
+name: Demo Terraform answer
 
 on:
   pull_request:
@@ -18,16 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Comment with findings
+      - name: Comment with answer
         uses: ./
         with:
           prompt: |
-            Scan the example Terraform in this pull request and return a concise report of findings.
-            Focus on real infrastructure risks, drift, and missing ownership or governance metadata.
-            Do not invent issues that are not present in the Terraform files.
+            Count the words changed in this PR's example Terraform file and summarize the comment-worthy issues in a direct answer.
+            Do not format the result like a report template; answer the question plainly and keep it PR-comment friendly.
           context: |
             This is the agentic-runner demo workflow.
             The repository includes a deliberate Terraform example change for the workflow to inspect.
+            The model should answer directly, not with a report template.
           context_mode: diff
           focus_paths: |
             examples/terraform/main.tf

@@ -1,13 +1,5 @@
-export type Verdict = 'pass' | 'warn' | 'fail';
-export type Severity = 'critical' | 'high' | 'medium' | 'low';
+export type ResponseSignal = 'success' | 'attention' | 'blocked';
 export type ContextMode = 'diff' | 'full' | 'hybrid' | 'agentic';
-
-export interface Finding {
-  severity: Severity;
-  title: string;
-  details: string;
-  recommendation: string;
-}
 
 export interface FileRequest {
   path: string;
@@ -15,15 +7,17 @@ export interface FileRequest {
   mode?: 'full' | 'snippet' | 'diff';
 }
 
-export interface ReviewReport {
+export interface WorkflowResponse {
   title: string;
-  summary: string;
-  verdict: Verdict;
-  findings: Finding[];
+  answer: string;
+  signal: ResponseSignal;
+  highlights: string[];
   next_steps: string[];
   notes: string[];
   requests?: FileRequest[];
 }
+
+export type ReviewReport = WorkflowResponse;
 
 export interface ReviewInputs {
   prompt: string;
@@ -71,7 +65,7 @@ export interface ChatRequest {
 }
 
 export interface AgenticChatResult {
-  report: ReviewReport;
+  response: WorkflowResponse;
   rawContent: string;
 }
 

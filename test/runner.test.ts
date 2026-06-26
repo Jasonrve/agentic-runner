@@ -6,7 +6,7 @@ import { ReviewDeps, ReviewInputs } from '../src/types.ts';
 test('executeReview performs an agentic second round when files are requested', async () => {
   const calls: string[] = [];
   const inputs: ReviewInputs = {
-    prompt: 'Review the workflow diff',
+    prompt: 'Answer the question about the changed Terraform',
     context: 'Repo rules',
     llmBaseUrl: 'https://example.invalid/v1',
     llmApiKey: 'dummy',
@@ -14,10 +14,11 @@ test('executeReview performs an agentic second round when files are requested', 
     prNumber: null,
     postComment: false,
     failOnFindings: false,
-    commentMarker: '<!-- agentic-run -->',
+    commentMarker: '<!-- agentic-runner -->',
     dryRun: true,
     mockResponseFile: '',
     contextMode: 'agentic',
+    focusPaths: [],
     extraContextPaths: [],
     maxFileChars: 2000,
     maxFollowUpRounds: 1,
@@ -37,11 +38,11 @@ test('executeReview performs an agentic second round when files are requested', 
       calls.push(messages.map((message) => `${message.role}:${message.content}`).join('\n---\n'));
       if (calls.length === 1) {
         return {
-          report: {
+          response: {
             title: 'Initial pass',
-            summary: 'Need more context for the workflow run.',
-            verdict: 'warn',
-            findings: [],
+            answer: 'Need one more file to answer the question.',
+            signal: 'attention',
+            highlights: [],
             next_steps: [],
             notes: [],
             requests: [{ path: 'main.tf', reason: 'Need the full file', mode: 'full' }],
@@ -51,11 +52,11 @@ test('executeReview performs an agentic second round when files are requested', 
       }
 
       return {
-        report: {
-          title: 'Final pass',
-          summary: 'Reviewed with additional file context.',
-          verdict: 'pass',
-          findings: [],
+        response: {
+          title: 'Final answer',
+          answer: 'Two words changed and the PR should mention the public ingress exposure.',
+          signal: 'success',
+          highlights: ['Used the requested file context.'],
           next_steps: [],
           notes: [],
         },
@@ -68,5 +69,7 @@ test('executeReview performs an agentic second round when files are requested', 
 
   assert.equal(calls.length, 2);
   assert.match(calls[1], /contents of main.tf/);
-  assert.equal(result.report.verdict, 'pass');
+  assert.equal(result.response.signal, 'success');
+  assert.match(result.markdown, /Two words changed/);
+  assert.doesNotMatch(result.markdown, /findings table/i);
 });

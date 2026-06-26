@@ -1,4 +1,4 @@
-import { ReviewReport, ChatMessage, ChatRequest, FileRequest } from './types.ts';
+import { ChatMessage, ChatRequest, FileRequest, ReviewReport, WorkflowResponse } from './types.ts';
 
 function stripCodeFence(value: string): string {
   const trimmed = value.trim();
@@ -8,22 +8,47 @@ function stripCodeFence(value: string): string {
   return trimmed;
 }
 
-export function parseReport(content: string): ReviewReport {
-  const payload = JSON.parse(stripCodeFence(content));
+function normalizeSignal(value: unknown): WorkflowResponse['signal'] {
+  if (value === 'blocked') return 'blocked';
+  if (value === 'attention' || value === 'warn') return 'attention';
+  return 'success';
+}
+
+function mapFindingsToHighlights(findings: Array<Record<string, unknown>>): string[] {
+  return findings
+    .map((finding) => {
+      const title = String(finding.title ?? '').trim();
+      const details = String(finding.details ?? '').trim();
+      const recommendation = String(finding.recommendation ?? '').trim();
+      return [title, details, recommendation].filter(Boolean).join(' — ');
+    })
+    .filter(Boolean);
+}
+
+export function parseResponse(content: string): WorkflowResponse {
+  const payload = JSON.parse(stripCodeFence(content)) as Record<string, unknown> & {
+    summary?: unknown;
+    verdict?: unknown;
+    findings?: unknown;
+    highlights?: unknown;
+    next_steps?: unknown;
+    notes?: unknown;
+    requests?: unknown;
+    answer?: unknown;
+    signal?: unknown;
+  };
+  const findings = Array.isArray(payload.findings) ? (payload.findings as Array<Record<string, unknown>>) : [];
+  const highlights = Array.isArray(payload.highlights)
+    ? payload.highlights.map(String).filter(Boolean)
+    : mapFindingsToHighlights(findings);
+
   return {
-    title: String(payload.title ?? 'Agentic Run Report'),
-    summary: String(payload.summary ?? ''),
-    verdict: payload.verdict === 'fail' || payload.verdict === 'warn' ? payload.verdict : 'pass',
-    findings: Array.isArray(payload.findings)
-      ? payload.findings.map((finding: Record<string, unknown>) => ({
-          severity: (finding.severity as ReviewReport['findings'][number]['severity']) ?? 'medium',
-          title: String(finding.title ?? ''),
-          details: String(finding.details ?? ''),
-          recommendation: String(finding.recommendation ?? ''),
-        }))
-      : [],
-    next_steps: Array.isArray(payload.next_steps) ? payload.next_steps.map(String) : [],
-    notes: Array.isArray(payload.notes) ? payload.notes.map(String) : [],
+    title: String(payload.title ?? 'Agentic Runner Response'),
+    answer: String(payload.answer ?? payload.summary ?? ''),
+    signal: normalizeSignal(payload.signal ?? payload.verdict),
+    highlights,
+    next_steps: Array.isArray(payload.next_steps) ? payload.next_steps.map(String).filter(Boolean) : [],
+    notes: Array.isArray(payload.notes) ? payload.notes.map(String).filter(Boolean) : [],
     requests: Array.isArray(payload.requests)
       ? payload.requests.map((request: Record<string, unknown>) => ({
           path: String(request.path ?? ''),
@@ -37,19 +62,22 @@ export function parseReport(content: string): ReviewReport {
 export function buildSystemPrompt(): string {
   return [
     'You are a disciplined LLM workflow assistant.',
-    'Return ONLY valid JSON.',
-    'Shape:',
+    'Answer the user request directly and concisely; do not use a report layout.',
+    'Return ONLY valid JSON in this shape:',
     '{',
     '  "title": string,',
-    '  "summary": string,',
-    '  "verdict": "pass" | "warn" | "fail",',
-    '  "findings": [{ "severity": "critical" | "high" | "medium" | "low", "title": string, "details": string, "recommendation": string }],',
+    '  "answer": string,',
+    '  "signal": "success" | "attention" | "blocked",',
+    '  "highlights": [string],',
     '  "next_steps": [string],',
     '  "notes": [string],',
     '  "requests"?: [{ "path": string, "reason": string, "mode"?: "full" | "snippet" | "diff" }]',
     '}',
-    'Keep it concise, specific, and suitable for a GitHub PR comment.',
-    'If you need more file contents, populate requests with the exact file paths and why they are needed.',
+    'Use answer for the direct response the user asked for.',
+    'Use highlights for short bullets or key observations.',
+    'Use next_steps only when there is a real follow-up action.',
+    'If you need more file contents, populate requests with exact file paths and why they are needed.',
+    'Keep the output suitable for a GitHub PR comment.',
   ].join('\n');
 }
 
@@ -75,7 +103,7 @@ export function buildChatCompletionsUrl(baseUrl: string): string {
   return `${trimmed}/v1/chat/completions`;
 }
 
-export async function callLlm(request: ChatRequest, baseUrl: string, apiKey: string): Promise<ReviewReport> {
+export async function callLlm(request: ChatRequest, baseUrl: string, apiKey: string): Promise<WorkflowResponse> {
   const response = await fetch(buildChatCompletionsUrl(baseUrl), {
     method: 'POST',
     headers: {
@@ -97,5 +125,5 @@ export async function callLlm(request: ChatRequest, baseUrl: string, apiKey: str
     throw new Error('LLM response did not include message content');
   }
 
-  return parseReport(content);
+  return parseResponse(content);
 }

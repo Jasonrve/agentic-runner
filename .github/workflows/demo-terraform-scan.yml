@@ -18,22 +18,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate Terraform demo report
-        run: node scripts/scan-terraform-demo.mjs > /tmp/agentic-runner-report.json
-
       - name: Comment with findings
         uses: ./
         with:
           prompt: |
-            Scan the Terraform changes in this PR and comment with a concise report of findings.
-            Focus on security, drift risk, and missing governance metadata.
+            Scan the example Terraform in this pull request and return a concise report of findings.
+            Focus on real infrastructure risks, drift, and missing ownership or governance metadata.
+            Do not invent issues that are not present in the Terraform files.
           context: |
-            This is a demo workflow for agentic-runner.
-            Use the injected Terraform guidance and keep the report short and actionable.
+            This is the agentic-runner demo workflow.
+            The repository includes a deliberate Terraform example change for the workflow to inspect.
           context_mode: hybrid
           extra_context_paths: |
             docs/terraform-review-guidance.md
-          mock_response_file: /tmp/agentic-runner-report.json
+          llm_base_url: ${{ secrets.BIFROST_ENDPOINT }}
+          llm_api_key: ${{ secrets.BIFROST_VIRTUAL_KEY }}
           github_token: ${{ github.token }}
           pr_number: ${{ github.event.pull_request.number }}
           post_comment: true

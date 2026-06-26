@@ -24052,8 +24052,21 @@ ${context2}`;
     { role: "user", content: userContent }
   ];
 }
+function buildChatCompletionsUrl(baseUrl) {
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  if (!trimmed) {
+    return "/v1/chat/completions";
+  }
+  if (trimmed.endsWith("/chat/completions")) {
+    return trimmed;
+  }
+  if (/\/v\d+(?:\/)?$/i.test(trimmed)) {
+    return `${trimmed.replace(/\/+$/, "")}/chat/completions`;
+  }
+  return `${trimmed}/v1/chat/completions`;
+}
 async function callLlm(request, baseUrl, apiKey) {
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+  const response = await fetch(buildChatCompletionsUrl(baseUrl), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,

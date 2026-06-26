@@ -16,7 +16,7 @@ It can render a structured Markdown report, upsert a single PR comment, and work
   - next steps
 - upserts one stable PR comment instead of creating duplicates
 - can fail the workflow when findings are present
-- supports a fixture path for deterministic demos and CI validation
+- supports a fixture path for deterministic local validation and tests
 
 ## Inputs
 
@@ -75,13 +75,16 @@ jobs:
 ## Demo workflow in this repo
 
 This repository includes a PR workflow that scans the example Terraform fixture and comments on the PR with the findings report.
-The demo is deterministic so it can run without any external LLM credentials.
+The demo is powered by Bifrost and uses the repository secrets below:
+
+- `BIFROST_ENDPOINT` = `https://bifrost.workside.win/`
+- `BIFROST_VIRTUAL_KEY` = your Bifrost virtual key
+
+The demo workflow uses the real LLM-backed action end to end.
 
 - workflow: `.github/workflows/demo-terraform-scan.yml`
 - example Terraform: `examples/terraform/main.tf`
-- demo scanner: `scripts/scan-terraform-demo.mjs`
-
-The demo scanner produces a JSON report, and `agentic-runner` turns that report into the PR comment.
+- guidance: `docs/terraform-review-guidance.md`
 
 ## Local validation
 
@@ -95,7 +98,7 @@ The action expects an OpenAI-compatible chat completions API.
 It posts to:
 
 ```text
-POST {llm_base_url}/chat/completions
+POST {llm_base_url}/v1/chat/completions
 ```
 
-If your provider uses a different path, point `llm_base_url` at a compatible gateway.
+If you already pass a URL that ends in `/v1` or `/chat/completions`, the action will normalize it correctly.

@@ -10,7 +10,7 @@ inputs:
     required: false
     default: ""
   llm_base_url:
-    description: OpenAI-compatible LLM base URL.
+    description: OpenAI-compatible LLM base URL. The action normalizes root and `/v1` endpoints to chat completions.
     required: false
     default: ""
   llm_api_key:
@@ -46,7 +46,7 @@ inputs:
     required: false
     default: "false"
   mock_response_file:
-    description: Optional path to a file containing a raw JSON report or OpenAI-style response payload.
+    description: Optional path to a file containing a raw JSON report or OpenAI-style response payload for tests and local validation.
     required: false
     default: ""
   context_mode:

@@ -61,8 +61,22 @@ export function buildMessages(prompt: string, context: string, followUp?: string
   ];
 }
 
+export function buildChatCompletionsUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '');
+  if (!trimmed) {
+    return '/v1/chat/completions';
+  }
+  if (trimmed.endsWith('/chat/completions')) {
+    return trimmed;
+  }
+  if (/\/v\d+(?:\/)?$/i.test(trimmed)) {
+    return `${trimmed.replace(/\/+$/, '')}/chat/completions`;
+  }
+  return `${trimmed}/v1/chat/completions`;
+}
+
 export async function callLlm(request: ChatRequest, baseUrl: string, apiKey: string): Promise<ReviewReport> {
-  const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
+  const response = await fetch(buildChatCompletionsUrl(baseUrl), {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,

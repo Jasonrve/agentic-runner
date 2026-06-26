@@ -23937,6 +23937,10 @@ async function loadFiles(repoRoot, paths, maxChars) {
 async function fetchRepoContext(inputs) {
   const repoRoot = (await runGit(["rev-parse", "--show-toplevel"], process.cwd())).trim();
   const { baseSha, headSha } = resolveBaseHead();
+  try {
+    await runGit(["fetch", "--no-tags", "--depth=1", "origin", baseSha, headSha], repoRoot);
+  } catch {
+  }
   const changedFilesRaw = await runGit(["diff", "--name-only", baseSha, headSha], repoRoot);
   const changedFiles = changedFilesRaw.split("\n").map((item) => item.trim()).filter(Boolean);
   const diffArgs = ["diff", "--unified=0", baseSha, headSha, "--", ...changedFiles];

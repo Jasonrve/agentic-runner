@@ -67,6 +67,11 @@ export async function loadFiles(repoRoot: string, paths: string[], maxChars: num
 export async function fetchRepoContext(inputs: ReviewInputs): Promise<RepoContext> {
   const repoRoot = (await runGit(['rev-parse', '--show-toplevel'], process.cwd())).trim();
   const { baseSha, headSha } = resolveBaseHead();
+  try {
+    await runGit(['fetch', '--no-tags', '--depth=1', 'origin', baseSha, headSha], repoRoot);
+  } catch {
+    // Best effort: some local or fixture-based runs already have the SHAs available.
+  }
   const changedFilesRaw = await runGit(['diff', '--name-only', baseSha, headSha], repoRoot);
   const changedFiles = changedFilesRaw.split('\n').map((item) => item.trim()).filter(Boolean);
 

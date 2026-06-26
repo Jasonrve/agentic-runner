@@ -4,7 +4,7 @@ import { renderMarkdown } from '../src/render.ts';
 
 test('renderMarkdown formats a highlighted review summary and finding cards', () => {
   const output = renderMarkdown({
-    title: 'Terraform Governance Review',
+    title: 'Terraform Demo Review',
     summary: 'Missing owner tag on a security group.',
     verdict: 'warn',
     findings: [
@@ -25,7 +25,7 @@ test('renderMarkdown formats a highlighted review summary and finding cards', ()
     notes: ['Focused on changed Terraform files.'],
   });
 
-  assert.match(output, /# ⚠️ Terraform Governance Review/);
+  assert.match(output, /# ⚠️ Terraform Demo Review/);
   assert.match(output, /## 📌 At a glance/);
   assert.match(output, /\| Verdict \| ⚠️ \*\*WARN\*\* \|/);
   assert.match(output, /\| Total findings \| \*\*2\*\* \|/);

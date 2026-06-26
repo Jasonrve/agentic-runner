@@ -1,8 +1,8 @@
 {
-  "name": "agentic-run",
+  "name": "agentic-runner",
   "version": "1.0.0",
-  "private": true,
-  "description": "Reusable GitHub Action for OpenAI-compatible LLM PR reports",
+  "private": false,
+  "description": "Generic GitHub Action for LLM workflows, injected context, and PR comment reports",
   "license": "MIT",
   "main": "dist/index.js",
   "scripts": {

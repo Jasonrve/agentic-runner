@@ -1,12 +1,12 @@
-name: agentic-run
-description: Call an OpenAI-compatible LLM with a prompt, render a well-formatted Markdown report, and optionally upsert it as a PR comment.
+name: agentic-runner
+description: Call an OpenAI-compatible LLM or a precomputed workflow report, render a clean Markdown summary, and optionally upsert it as a PR comment.
 
 inputs:
   prompt:
-    description: Primary instruction for the LLM.
+    description: Primary instruction for the LLM workflow.
     required: true
   context:
-    description: Optional additional context to include with the prompt.
+    description: Optional injected context to include with the prompt.
     required: false
     default: ""
   llm_base_url:
@@ -38,15 +38,15 @@ inputs:
     required: false
     default: "false"
   comment_marker:
-    description: Stable HTML marker used to update one comment instead of spamming duplicates.
+    description: Stable HTML marker used to update one comment instead of creating duplicates.
     required: false
-    default: "<!-- agentic-run -->"
+    default: "<!-- agentic-runner -->"
   dry_run:
     description: Skip posting a PR comment and only emit outputs.
     required: false
     default: "false"
   mock_response_file:
-    description: Optional path to a file containing a raw OpenAI-style response payload for validation.
+    description: Optional path to a file containing a raw JSON report or OpenAI-style response payload.
     required: false
     default: ""
   context_mode:

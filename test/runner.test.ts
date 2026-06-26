@@ -6,7 +6,7 @@ import { ReviewDeps, ReviewInputs } from '../src/types.ts';
 test('executeReview performs an agentic second round when files are requested', async () => {
   const calls: string[] = [];
   const inputs: ReviewInputs = {
-    prompt: 'Review the diff',
+    prompt: 'Review the workflow diff',
     context: 'Repo rules',
     llmBaseUrl: 'https://example.invalid/v1',
     llmApiKey: 'dummy',
@@ -39,7 +39,7 @@ test('executeReview performs an agentic second round when files are requested', 
         return {
           report: {
             title: 'Initial pass',
-            summary: 'Need more context.',
+            summary: 'Need more context for the workflow run.',
             verdict: 'warn',
             findings: [],
             next_steps: [],
@@ -53,7 +53,7 @@ test('executeReview performs an agentic second round when files are requested', 
       return {
         report: {
           title: 'Final pass',
-          summary: 'Reviewed with file context.',
+          summary: 'Reviewed with additional file context.',
           verdict: 'pass',
           findings: [],
           next_steps: [],

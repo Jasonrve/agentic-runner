@@ -50,7 +50,7 @@ export function renderMarkdown(report: ReviewReport): string {
   const verdict = verdictMeta[report.verdict];
 
   const lines: string[] = [];
-  lines.push(`# ${verdict.icon} ${report.title || 'Agentic Run Report'}`);
+  lines.push(`# ${verdict.icon} ${report.title || 'Agentic Runner Report'}`);
   lines.push('');
   lines.push('## 📌 At a glance');
   lines.push('');

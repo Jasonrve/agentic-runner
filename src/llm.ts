@@ -36,7 +36,7 @@ export function parseReport(content: string): ReviewReport {
 
 export function buildSystemPrompt(): string {
   return [
-    'You are a disciplined review and reporting assistant.',
+    'You are a disciplined LLM workflow assistant.',
     'Return ONLY valid JSON.',
     'Shape:',
     '{',
@@ -46,7 +46,7 @@ export function buildSystemPrompt(): string {
     '  "findings": [{ "severity": "critical" | "high" | "medium" | "low", "title": string, "details": string, "recommendation": string }],',
     '  "next_steps": [string],',
     '  "notes": [string],',
-    '  "requests"?: [{ "path": string, "reason": string, "mode"?: "full" | "excerpt" | "diff" }]',
+    '  "requests"?: [{ "path": string, "reason": string, "mode"?: "full" | "snippet" | "diff" }]',
     '}',
     'Keep it concise, specific, and suitable for a GitHub PR comment.',
     'If you need more file contents, populate requests with the exact file paths and why they are needed.',

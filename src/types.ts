@@ -12,7 +12,7 @@ export interface Finding {
 export interface FileRequest {
   path: string;
   reason: string;
-  mode?: 'full' | 'excerpt' | 'diff';
+  mode?: 'full' | 'snippet' | 'diff';
 }
 
 export interface ReviewReport {

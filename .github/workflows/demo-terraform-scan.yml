@@ -1,0 +1,40 @@
+name: Demo Terraform scan
+
+on:
+  pull_request:
+    paths:
+      - 'examples/terraform/**'
+      - 'docs/terraform-review-guidance.md'
+      - '.github/workflows/demo-terraform-scan.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Terraform demo report
+        run: node scripts/scan-terraform-demo.mjs > /tmp/agentic-runner-report.json
+
+      - name: Comment with findings
+        uses: ./
+        with:
+          prompt: |
+            Scan the Terraform changes in this PR and comment with a concise report of findings.
+            Focus on security, drift risk, and missing governance metadata.
+          context: |
+            This is a demo workflow for agentic-runner.
+            Use the injected Terraform guidance and keep the report short and actionable.
+          context_mode: hybrid
+          extra_context_paths: |
+            docs/terraform-review-guidance.md
+          mock_response_file: /tmp/agentic-runner-report.json
+          github_token: ${{ github.token }}
+          pr_number: ${{ github.event.pull_request.number }}
+          post_comment: true
+          fail_on_findings: false

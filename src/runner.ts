@@ -61,8 +61,8 @@ export function parseInputs(): ReviewInputs {
   return {
     prompt: core.getInput('prompt', { required: true }),
     context: core.getInput('context'),
-    llmBaseUrl: core.getInput('llm_base_url', { required: true }),
-    llmApiKey: core.getInput('llm_api_key', { required: true }),
+    llmBaseUrl: core.getInput('llm_base_url'),
+    llmApiKey: core.getInput('llm_api_key'),
     model: core.getInput('model') || 'openai/gpt-4o-mini',
     prNumber: (() => {
       const raw = core.getInput('pr_number');

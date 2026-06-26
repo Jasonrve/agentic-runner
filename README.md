@@ -34,6 +34,7 @@ It can render a structured Markdown report, upsert a single PR comment, and work
 | `dry_run` | no | `false` | Render output without posting a comment |
 | `mock_response_file` | no | `` | Validation helper for local/CI demo runs |
 | `context_mode` | no | `diff` | Context strategy (`diff`, `full`, `hybrid`, `agentic`) |
+| `focus_paths` | no | `` | File paths to focus the scan on |
 | `extra_context_paths` | no | `` | Comma or newline separated file paths to always include |
 | `max_file_chars` | no | `12000` | Maximum characters to load per file |
 | `max_follow_up_rounds` | no | `1` | Max extra rounds in agentic mode |
@@ -83,14 +84,14 @@ The demo is powered by Bifrost and uses the repository secrets below:
 The demo workflow uses the real LLM-backed action end to end.
 
 - workflow: `.github/workflows/demo-terraform-scan.yml`
-- example Terraform: `examples/terraform/main.tf`
+- focus file: `examples/terraform/main.tf`
 - guidance: `docs/terraform-review-guidance.md`
 
 ## Local validation
 
 - `npm test` exercises the TypeScript rendering and agentic follow-up flow
 - `npm run build` bundles `dist/index.js`
-- the demo workflow exercises the comment-upsert path with a deterministic report fixture
+- the demo workflow exercises the comment-upsert path end to end against Bifrost and a real Terraform scan
 
 ## LLM contract
 

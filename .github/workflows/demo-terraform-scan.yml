@@ -28,7 +28,9 @@ jobs:
           context: |
             This is the agentic-runner demo workflow.
             The repository includes a deliberate Terraform example change for the workflow to inspect.
-          context_mode: hybrid
+          context_mode: diff
+          focus_paths: |
+            examples/terraform/main.tf
           extra_context_paths: |
             docs/terraform-review-guidance.md
           llm_base_url: ${{ secrets.BIFROST_ENDPOINT }}

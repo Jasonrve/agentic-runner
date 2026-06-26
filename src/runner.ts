@@ -21,9 +21,8 @@ export async function executeReview(inputs: ReviewInputs, deps?: ReviewDeps): Pr
   );
 
   let report = first.report;
-  let round = 0;
 
-  while (inputs.contextMode === 'agentic' && Array.isArray(report.requests) && report.requests.length > 0 && round < inputs.maxFollowUpRounds) {
+  if (inputs.contextMode === 'agentic' && Array.isArray(report.requests) && report.requests.length > 0 && inputs.maxFollowUpRounds > 0) {
     const requestedPaths = report.requests.map((request) => request.path).filter(Boolean);
     const requestedFiles = await actualDeps.loadFiles(repoContext.repoRoot, requestedPaths, inputs.maxFileChars);
     const followUp = [
@@ -49,7 +48,6 @@ export async function executeReview(inputs: ReviewInputs, deps?: ReviewDeps): Pr
       followUpMessages,
     );
     report = second.report;
-    round += 1;
   }
 
   const markdown = renderMarkdown(report);
@@ -76,6 +74,7 @@ export function parseInputs(): ReviewInputs {
     dryRun: core.getInput('dry_run') === 'true',
     mockResponseFile: core.getInput('mock_response_file'),
     contextMode: ['diff', 'full', 'hybrid', 'agentic'].includes(contextMode) ? contextMode : 'diff',
+    focusPaths: parsePathList(core.getInput('focus_paths')),
     extraContextPaths: parsePathList(core.getInput('extra_context_paths')),
     maxFileChars: Number(core.getInput('max_file_chars') || '12000'),
     maxFollowUpRounds: Number(core.getInput('max_follow_up_rounds') || '1'),

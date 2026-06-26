@@ -38,6 +38,7 @@ export interface ReviewInputs {
   dryRun: boolean;
   mockResponseFile: string;
   contextMode: ContextMode;
+  focusPaths: string[];
   extraContextPaths: string[];
   maxFileChars: number;
   maxFollowUpRounds: number;

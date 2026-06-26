@@ -53,6 +53,10 @@ inputs:
     description: Context strategy to use. diff, full, hybrid, or agentic.
     required: false
     default: diff
+  focus_paths:
+    description: Comma or newline separated list of files to focus the scan on.
+    required: false
+    default: ""
   extra_context_paths:
     description: Comma or newline separated list of file paths to always include.
     required: false

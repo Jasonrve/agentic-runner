@@ -23937,15 +23937,21 @@ async function loadFiles(repoRoot, paths, maxChars) {
 async function fetchRepoContext(inputs) {
   const repoRoot = (await runGit(["rev-parse", "--show-toplevel"], process.cwd())).trim();
   const { baseSha, headSha } = resolveBaseHead();
+  const focusPaths = inputs.focusPaths.length > 0 ? [...new Set(inputs.focusPaths.map((item) => item.trim()).filter(Boolean))] : [];
+  const targetPaths = focusPaths.length > 0 ? focusPaths : void 0;
   try {
     await runGit(["fetch", "--no-tags", "--depth=1", "origin", baseSha, headSha], repoRoot);
   } catch {
   }
-  const changedFilesRaw = await runGit(["diff", "--name-only", baseSha, headSha], repoRoot);
+  const changedFilesRaw = targetPaths ? targetPaths.join("\n") : await runGit(["diff", "--name-only", baseSha, headSha], repoRoot);
   const changedFiles = changedFilesRaw.split("\n").map((item) => item.trim()).filter(Boolean);
-  const diffArgs = ["diff", "--unified=0", baseSha, headSha, "--", ...changedFiles];
+  const diffArgs = ["diff", "--unified=0", baseSha, headSha, "--", ...targetPaths ?? changedFiles];
   const diffText = changedFiles.length > 0 ? await runGit(diffArgs, repoRoot) : await runGit(["diff", "--unified=0", baseSha, headSha], repoRoot);
-  const loadedPaths = inputs.contextMode === "full" || inputs.contextMode === "hybrid" ? [.../* @__PURE__ */ new Set([...inputs.extraContextPaths, ...changedFiles])] : inputs.extraContextPaths;
+  const loadedPaths = [.../* @__PURE__ */ new Set([
+    ...inputs.extraContextPaths,
+    ...focusPaths,
+    ...inputs.contextMode === "full" || inputs.contextMode === "hybrid" ? changedFiles : []
+  ])];
   const extraFiles = loadedPaths.length > 0 ? await loadFiles(repoRoot, loadedPaths, inputs.maxFileChars) : [];
   return { repoRoot, baseSha, headSha, changedFiles, diffText, extraFiles };
 }
@@ -24205,8 +24211,7 @@ ${inputs.context}` : ""));
     initialMessages
   );
   let report = first.report;
-  let round = 0;
-  while (inputs.contextMode === "agentic" && Array.isArray(report.requests) && report.requests.length > 0 && round < inputs.maxFollowUpRounds) {
+  if (inputs.contextMode === "agentic" && Array.isArray(report.requests) && report.requests.length > 0 && inputs.maxFollowUpRounds > 0) {
     const requestedPaths = report.requests.map((request) => request.path).filter(Boolean);
     const requestedFiles = await actualDeps.loadFiles(repoContext.repoRoot, requestedPaths, inputs.maxFileChars);
     const followUp = [
@@ -24233,7 +24238,6 @@ ${inputs.context}` : ""), followUp);
       followUpMessages
     );
     report = second.report;
-    round += 1;
   }
   const markdown = renderMarkdown(report);
   return { report, markdown, repoRoot: repoContext.repoRoot };
@@ -24258,6 +24262,7 @@ function parseInputs() {
     dryRun: core.getInput("dry_run") === "true",
     mockResponseFile: core.getInput("mock_response_file"),
     contextMode: ["diff", "full", "hybrid", "agentic"].includes(contextMode) ? contextMode : "diff",
+    focusPaths: parsePathList(core.getInput("focus_paths")),
     extraContextPaths: parsePathList(core.getInput("extra_context_paths")),
     maxFileChars: Number(core.getInput("max_file_chars") || "12000"),
     maxFollowUpRounds: Number(core.getInput("max_follow_up_rounds") || "1")

@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Comment with security report
+      - name: Comment with agentic security report
         uses: ./
         with:
           prompt: |
@@ -30,11 +30,13 @@ jobs:
             This is the agentic-runner Terraform governance demo.
             The rules live in docs/terraform-review-guidance.md.
             Review the changed Terraform files first and use additional file requests only when necessary.
-          context_mode: diff
+          context_mode: agentic
           focus_paths: |
             examples/terraform/main.tf
           extra_context_paths: |
             docs/terraform-review-guidance.md
+            examples/terraform/locals.tf
+            examples/terraform/stateful.tf
           llm_base_url: ${{ secrets.BIFROST_ENDPOINT }}
           llm_api_key: ${{ secrets.BIFROST_VIRTUAL_KEY }}
           github_token: ${{ github.token }}

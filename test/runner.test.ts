@@ -6,8 +6,8 @@ import { ReviewDeps, ReviewInputs } from '../src/types.ts';
 test('executeReview performs an agentic second round when files are requested', async () => {
   const calls: string[] = [];
   const inputs: ReviewInputs = {
-    prompt: 'Answer the question about the changed Terraform',
-    context: 'Repo rules',
+    prompt: 'Review the Terraform governance changes',
+    context: 'Repo governance docs',
     llmBaseUrl: 'https://example.invalid/v1',
     llmApiKey: 'dummy',
     model: 'openai/gpt-4o-mini',
@@ -40,8 +40,10 @@ test('executeReview performs an agentic second round when files are requested', 
         return {
           response: {
             title: 'Initial pass',
-            answer: 'Need one more file to answer the question.',
+            summary: 'Need one more file to complete the security review.',
             signal: 'attention',
+            verdict: 'warn',
+            findings: [],
             highlights: [],
             next_steps: [],
             notes: [],
@@ -54,10 +56,19 @@ test('executeReview performs an agentic second round when files are requested', 
       return {
         response: {
           title: 'Final answer',
-          answer: 'Two words changed and the PR should mention the public ingress exposure.',
-          signal: 'success',
+          summary: 'The Terraform still has one public ingress issue and one missing governance tag.',
+          signal: 'attention',
+          verdict: 'warn',
+          findings: [
+            {
+              severity: 'high',
+              title: 'Public ingress exposure',
+              details: '0.0.0.0/0 remains on the ingress rule.',
+              recommendation: 'Restrict ingress to trusted networks.',
+            },
+          ],
           highlights: ['Used the requested file context.'],
-          next_steps: [],
+          next_steps: ['Tighten ingress'],
           notes: [],
         },
         rawContent: '{}',
@@ -69,7 +80,7 @@ test('executeReview performs an agentic second round when files are requested', 
 
   assert.equal(calls.length, 2);
   assert.match(calls[1], /contents of main.tf/);
-  assert.equal(result.response.signal, 'success');
-  assert.match(result.markdown, /Two words changed/);
-  assert.doesNotMatch(result.markdown, /findings table/i);
+  assert.equal(result.response.verdict, 'warn');
+  assert.match(result.markdown, /## Findings/);
+  assert.match(result.markdown, /Public ingress exposure/);
 });

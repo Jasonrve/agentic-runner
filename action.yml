@@ -73,6 +73,10 @@ inputs:
 outputs:
   signal:
     description: Signal from the model response.
+  verdict:
+    description: Parsed security verdict from the model response.
+  finding_count:
+    description: Number of findings in the report.
   answer:
     description: Direct answer text rendered into the comment.
   comment_body:

@@ -1,4 +1,4 @@
-import { ChatMessage, ChatRequest, FileRequest, ReviewReport, WorkflowResponse } from './types.ts';
+import { ChatMessage, ChatRequest, FileRequest, ReviewFinding, ReviewVerdict, WorkflowResponse } from './types.ts';
 
 function stripCodeFence(value: string): string {
   const trimmed = value.trim();
@@ -9,19 +9,32 @@ function stripCodeFence(value: string): string {
 }
 
 function normalizeSignal(value: unknown): WorkflowResponse['signal'] {
-  if (value === 'blocked') return 'blocked';
+  if (value === 'blocked' || value === 'fail') return 'blocked';
   if (value === 'attention' || value === 'warn') return 'attention';
   return 'success';
 }
 
-function mapFindingsToHighlights(findings: Array<Record<string, unknown>>): string[] {
+function normalizeVerdict(value: unknown): ReviewVerdict | undefined {
+  if (value === 'pass' || value === 'warn' || value === 'fail') return value;
+  if (value === 'attention') return 'warn';
+  if (value === 'blocked') return 'fail';
+  return undefined;
+}
+
+function normalizeFinding(finding: Record<string, unknown>): ReviewFinding {
+  return {
+    severity: ['critical', 'high', 'medium', 'low'].includes(String(finding.severity))
+      ? (String(finding.severity) as ReviewFinding['severity'])
+      : 'medium',
+    title: String(finding.title ?? '').trim(),
+    details: String(finding.details ?? '').trim(),
+    recommendation: String(finding.recommendation ?? '').trim(),
+  };
+}
+
+function mapFindingsToHighlights(findings: ReviewFinding[]): string[] {
   return findings
-    .map((finding) => {
-      const title = String(finding.title ?? '').trim();
-      const details = String(finding.details ?? '').trim();
-      const recommendation = String(finding.recommendation ?? '').trim();
-      return [title, details, recommendation].filter(Boolean).join(' — ');
-    })
+    .map((finding) => [finding.title, finding.details, finding.recommendation].filter(Boolean).join(' — '))
     .filter(Boolean);
 }
 
@@ -37,15 +50,21 @@ export function parseResponse(content: string): WorkflowResponse {
     answer?: unknown;
     signal?: unknown;
   };
-  const findings = Array.isArray(payload.findings) ? (payload.findings as Array<Record<string, unknown>>) : [];
+  const findings = Array.isArray(payload.findings)
+    ? payload.findings.map((finding) => normalizeFinding(finding as Record<string, unknown>))
+    : [];
   const highlights = Array.isArray(payload.highlights)
     ? payload.highlights.map(String).filter(Boolean)
     : mapFindingsToHighlights(findings);
+  const verdict = normalizeVerdict(payload.verdict ?? payload.signal);
 
   return {
     title: String(payload.title ?? 'Agentic Runner Response'),
     answer: String(payload.answer ?? payload.summary ?? ''),
+    summary: String(payload.summary ?? payload.answer ?? ''),
     signal: normalizeSignal(payload.signal ?? payload.verdict),
+    verdict,
+    findings,
     highlights,
     next_steps: Array.isArray(payload.next_steps) ? payload.next_steps.map(String).filter(Boolean) : [],
     notes: Array.isArray(payload.notes) ? payload.notes.map(String).filter(Boolean) : [],
@@ -61,23 +80,23 @@ export function parseResponse(content: string): WorkflowResponse {
 
 export function buildSystemPrompt(): string {
   return [
-    'You are a disciplined LLM workflow assistant.',
-    'Answer the user request directly and concisely; do not use a report layout.',
+    'You are a senior Terraform security reviewer.',
+    'Follow the repository governance docs provided in the prompt as the source of truth.',
+    'Inspect the changed Terraform files first, then request additional Terraform files only when needed to confirm shared locals, modules, variables, stateful resources, or governance context.',
     'Return ONLY valid JSON in this shape:',
     '{',
     '  "title": string,',
-    '  "answer": string,',
-    '  "signal": "success" | "attention" | "blocked",',
-    '  "highlights": [string],',
+    '  "summary": string,',
+    '  "verdict": "pass" | "warn" | "fail",',
+    '  "findings": [{ "severity": "critical" | "high" | "medium" | "low", "title": string, "details": string, "recommendation": string }],',
     '  "next_steps": [string],',
     '  "notes": [string],',
     '  "requests"?: [{ "path": string, "reason": string, "mode"?: "full" | "snippet" | "diff" }]',
     '}',
-    'Use answer for the direct response the user asked for.',
-    'Use highlights for short bullets or key observations.',
-    'Use next_steps only when there is a real follow-up action.',
-    'If you need more file contents, populate requests with exact file paths and why they are needed.',
-    'Keep the output suitable for a GitHub PR comment.',
+    'Use findings for concrete security or governance issues only.',
+    'Use next_steps for actionable remediation items.',
+    'If extra context is needed, populate requests with exact file paths and why they matter.',
+    'Keep the output concise, specific, and suitable for a GitHub PR comment.',
   ].join('\n');
 }
 

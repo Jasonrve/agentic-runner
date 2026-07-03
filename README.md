@@ -74,7 +74,7 @@ jobs:
 
 ## Demo workflow in this repo
 
-This repository includes a PR workflow that answers a question about the example Terraform fixture and comments on the PR with a direct response.
+This repository includes a PR workflow that produces a Terraform security report from the example fixture and comments on the PR with a concise governance review.
 The demo is powered by Bifrost and uses the repository secrets below:
 
 - `BIFROST_ENDPOINT` = `https://bifrost.workside.win/`
@@ -90,7 +90,7 @@ The demo workflow uses the real LLM-backed action end to end.
 
 - `npm test` exercises the TypeScript rendering and agentic follow-up flow
 - `npm run build` bundles `dist/index.js`
-- the demo workflow exercises the comment-upsert path end to end against Bifrost and a real Terraform answer workflow
+- the demo workflow exercises the comment-upsert path end to end against Bifrost and a real Terraform security report workflow
 
 ## LLM contract
 

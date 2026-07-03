@@ -2,25 +2,39 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderMarkdown } from '../src/render.ts';
 
-test('renderMarkdown formats a concise answer instead of a report template', () => {
+test('renderMarkdown formats a security report', () => {
   const output = renderMarkdown({
-    title: 'Terraform answer',
-    answer: 'Two words changed in the Terraform file, and the PR should mention the public ingress exposure and missing owner tag.',
+    title: 'Terraform governance review',
+    summary: 'The changed Terraform introduces governance and exposure issues.',
     signal: 'attention',
-    highlights: ['Public HTTPS ingress from 0.0.0.0/0', 'Missing owner tag'],
-    next_steps: ['Restrict ingress to trusted CIDRs', 'Add an owner tag'],
+    verdict: 'warn',
+    findings: [
+      {
+        severity: 'high',
+        title: 'Public HTTPS ingress exposed to the internet',
+        details: 'The security group allows TCP/443 from 0.0.0.0/0.',
+        recommendation: 'Restrict ingress to trusted CIDRs only.',
+      },
+      {
+        severity: 'medium',
+        title: 'Missing owner tag',
+        details: 'The resource tags do not include owner.',
+        recommendation: 'Add owner and related governance tags before merging.',
+      },
+    ],
+    highlights: ['Public ingress', 'Missing owner tag'],
+    next_steps: ['Restrict ingress', 'Add governance tags'],
     notes: ['Focused on the example Terraform file.'],
   });
 
-  assert.match(output, /# ⚠️ Terraform answer/);
-  assert.match(output, /> ATTENTION/);
-  assert.match(output, /## Answer/);
-  assert.match(output, /Two words changed in the Terraform file/);
-  assert.match(output, /## Highlights/);
-  assert.match(output, /- Public HTTPS ingress from 0.0.0.0\/0/);
-  assert.match(output, /## Suggested next steps/);
-  assert.match(output, /- \[ \] Restrict ingress to trusted CIDRs/);
-  assert.match(output, /## Notes/);
-  assert.doesNotMatch(output, /At a glance/);
-  assert.doesNotMatch(output, /findings table/i);
+  assert.match(output, /# ⚠️ Terraform governance review/);
+  assert.match(output, /> WARN/);
+  assert.match(output, /## At a glance/);
+  assert.match(output, /\| Verdict \| ⚠️ \*\*WARN\*\* \|/);
+  assert.match(output, /## Executive summary/);
+  assert.match(output, /## Findings/);
+  assert.match(output, /Public HTTPS ingress exposed to the internet/);
+  assert.match(output, /## Detail cards/);
+  assert.match(output, /## Next steps/);
+  assert.doesNotMatch(output, /report template/i);
 });

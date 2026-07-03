@@ -1,4 +1,5 @@
 export type ResponseSignal = 'success' | 'attention' | 'blocked';
+export type ReviewVerdict = 'pass' | 'warn' | 'fail';
 export type ContextMode = 'diff' | 'full' | 'hybrid' | 'agentic';
 
 export interface FileRequest {
@@ -7,10 +8,20 @@ export interface FileRequest {
   mode?: 'full' | 'snippet' | 'diff';
 }
 
+export interface ReviewFinding {
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  details: string;
+  recommendation: string;
+}
+
 export interface WorkflowResponse {
   title: string;
   answer: string;
+  summary?: string;
   signal: ResponseSignal;
+  verdict?: ReviewVerdict;
+  findings?: ReviewFinding[];
   highlights: string[];
   next_steps: string[];
   notes: string[];

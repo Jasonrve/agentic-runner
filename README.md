@@ -1,49 +1,47 @@
-# agentic-run
+# agentic-runner
 
-`agentic-run` is a reusable GitHub Action that sends a prompt to an OpenAI-compatible LLM, asks the model for a strict JSON report, renders a clean Markdown summary, and optionally upserts a single PR comment.
+`agentic-runner` is a generic GitHub Action for LLM workflows and injected context.
+It can render a concise Markdown answer, upsert a single PR comment, and work with either a live OpenAI-compatible model or a precomputed JSON response.
 
 ## What it does
 
-- accepts a `prompt` and optional `context`
+- accepts a prompt plus optional injected context
+- supports `diff`, `full`, `hybrid`, and `agentic` context modes
+- loads extra context files into the prompt
 - calls any OpenAI-compatible LLM endpoint
-- uses `openai/gpt-4o-mini` by default
-- renders a Markdown report with:
-  - verdict
-  - summary
-  - findings table
+- renders a clean Markdown response with:
+  - direct answer
+  - highlights
   - next steps
 - upserts one stable PR comment instead of creating duplicates
-- can fail the workflow when findings are present
-- supports multiple context strategies:
-  - `diff` — pass changed-file diff only
-  - `full` — include full changed-file contents
-  - `hybrid` — include diff plus file contents
-  - `agentic` — start with diff/context, then let the model request more files
+- can fail the workflow when the response signals attention is needed
+- supports a fixture path for deterministic local validation and tests
 
 ## Inputs
 
 | Input | Required | Default | Purpose |
 |---|---:|---|---|
-| `prompt` | yes | — | Main instruction for the LLM |
+| `prompt` | yes | — | Main instruction for the workflow |
 | `context` | no | `` | Extra context appended to the prompt |
-| `llm_base_url` | yes | — | OpenAI-compatible LLM base URL |
-| `llm_api_key` | yes | — | OpenAI-compatible LLM API key |
+| `llm_base_url` | no | `` | OpenAI-compatible LLM base URL |
+| `llm_api_key` | no | `` | OpenAI-compatible LLM API key |
 | `model` | no | `openai/gpt-4o-mini` | Model to use |
 | `pr_number` | no | `` | PR number to comment on |
 | `post_comment` | no | `true` | Upsert the PR comment |
-| `fail_on_findings` | no | `false` | Exit non-zero when findings exist |
-| `comment_marker` | no | `<!-- agentic-run -->` | Stable marker for comment upsert |
+| `fail_on_findings` | no | `false` | Exit non-zero when the response signals attention or blocking issues |
+| `comment_marker` | no | `<!-- agentic-runner -->` | Stable marker for comment upsert |
 | `dry_run` | no | `false` | Render output without posting a comment |
-| `mock_response_file` | no | `` | Validation helper for local/CI dry runs |
+| `mock_response_file` | no | `` | Validation helper for local/CI demo runs |
 | `context_mode` | no | `diff` | Context strategy (`diff`, `full`, `hybrid`, `agentic`) |
+| `focus_paths` | no | `` | File paths to focus the workflow on |
 | `extra_context_paths` | no | `` | Comma or newline separated file paths to always include |
 | `max_file_chars` | no | `12000` | Maximum characters to load per file |
 | `max_follow_up_rounds` | no | `1` | Max extra rounds in agentic mode |
 
-## Example usage
+## Generic usage
 
 ```yaml
-name: Terraform security review
+name: LLM workflow answer
 
 on:
   pull_request:
@@ -55,51 +53,52 @@ permissions:
   issues: write
 
 jobs:
-  security-review:
+  answer:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run agentic review
-        uses: Jasonrve/agentic-run@v1
+      - name: Run agentic-runner
+        uses: Jasonrve/agentic-runner@v1
         with:
           github_token: ${{ github.token }}
           llm_base_url: ${{ secrets.LLM_BASE_URL }}
           llm_api_key: ${{ secrets.LLM_API_KEY }}
-          context_mode: agentic
-          extra_context_paths: |
-            docs/governance-rules.md
           prompt: |
-            Review the Terraform changes in this PR for governance and security issues.
-            Return a concise report suitable for a PR comment.
+            Answer the user's question directly using the changed files and injected context.
+          context_mode: diff
+          focus_paths: |
+            docs/rules.md
           fail_on_findings: true
 ```
 
-## Provider examples
+## Demo workflow in this repo
 
-`agentic-run` is provider-agnostic as long as the endpoint speaks the OpenAI chat-completions shape.
+This repository includes a PR workflow that answers a question about the example Terraform fixture and comments on the PR with a direct response.
+The demo is powered by Bifrost and uses the repository secrets below:
 
-Examples:
+- `BIFROST_ENDPOINT` = `https://bifrost.workside.win/`
+- `BIFROST_VIRTUAL_KEY` = your Bifrost virtual key
 
-- Bifrost: `https://bifrost.workside.win/v1`
-- OpenRouter: `https://openrouter.ai/api/v1`
-- Local gateways: any internal OpenAI-compatible proxy
+The demo workflow uses the real LLM-backed action end to end.
+
+- workflow: `.github/workflows/demo-terraform-scan.yml`
+- focus file: `examples/terraform/main.tf`
+- guidance: `docs/terraform-review-guidance.md`
 
 ## Local validation
 
-The repo includes a dry-run-friendly validation path so the action can be checked without calling a live model provider.
-
 - `npm test` exercises the TypeScript rendering and agentic follow-up flow
 - `npm run build` bundles `dist/index.js`
-- `.github/workflows/validate.yml` exercises the published action with a fixture
+- the demo workflow exercises the comment-upsert path end to end against Bifrost and a real Terraform answer workflow
 
 ## LLM contract
 
-The action expects the provider to behave like an OpenAI-compatible chat completions API.
-It currently calls:
+The action expects an OpenAI-compatible chat completions API.
+It posts to:
 
 ```text
-POST {llm_base_url}/chat/completions
+POST {llm_base_url}/v1/chat/completions
 ```
 
-If your provider uses a different path, adjust the action or point `llm_base_url` at a compatible gateway.
+If you already pass a URL that ends in `/v1` or `/chat/completions`, the action will normalize it correctly.

@@ -67,15 +67,26 @@ export async function loadFiles(repoRoot: string, paths: string[], maxChars: num
 export async function fetchRepoContext(inputs: ReviewInputs): Promise<RepoContext> {
   const repoRoot = (await runGit(['rev-parse', '--show-toplevel'], process.cwd())).trim();
   const { baseSha, headSha } = resolveBaseHead();
-  const changedFilesRaw = await runGit(['diff', '--name-only', baseSha, headSha], repoRoot);
+  const focusPaths = inputs.focusPaths.length > 0 ? [...new Set(inputs.focusPaths.map((item) => item.trim()).filter(Boolean))] : [];
+  const targetPaths = focusPaths.length > 0 ? focusPaths : undefined;
+  try {
+    await runGit(['fetch', '--no-tags', '--depth=1', 'origin', baseSha, headSha], repoRoot);
+  } catch {
+    // Best effort: some local or fixture-based runs already have the SHAs available.
+  }
+  const changedFilesRaw = targetPaths
+    ? targetPaths.join('\n')
+    : await runGit(['diff', '--name-only', baseSha, headSha], repoRoot);
   const changedFiles = changedFilesRaw.split('\n').map((item) => item.trim()).filter(Boolean);
 
-  const diffArgs = ['diff', '--unified=0', baseSha, headSha, '--', ...changedFiles];
+  const diffArgs = ['diff', '--unified=0', baseSha, headSha, '--', ...(targetPaths ?? changedFiles)];
   const diffText = changedFiles.length > 0 ? await runGit(diffArgs, repoRoot) : await runGit(['diff', '--unified=0', baseSha, headSha], repoRoot);
 
-  const loadedPaths = inputs.contextMode === 'full' || inputs.contextMode === 'hybrid'
-    ? [...new Set([...inputs.extraContextPaths, ...changedFiles])]
-    : inputs.extraContextPaths;
+  const loadedPaths = [...new Set([
+    ...inputs.extraContextPaths,
+    ...focusPaths,
+    ...(inputs.contextMode === 'full' || inputs.contextMode === 'hybrid' ? changedFiles : []),
+  ])];
   const extraFiles = loadedPaths.length > 0 ? await loadFiles(repoRoot, loadedPaths, inputs.maxFileChars) : [];
 
   return { repoRoot, baseSha, headSha, changedFiles, diffText, extraFiles };

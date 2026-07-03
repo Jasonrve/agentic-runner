@@ -1,16 +1,16 @@
-name: agentic-run
-description: Call an OpenAI-compatible LLM with a prompt, render a well-formatted Markdown report, and optionally upsert it as a PR comment.
+name: agentic-runner
+description: Call an OpenAI-compatible LLM with injected context, render a concise PR comment, and optionally upsert it as a PR comment.
 
 inputs:
   prompt:
-    description: Primary instruction for the LLM.
+    description: Primary instruction for the LLM workflow.
     required: true
   context:
-    description: Optional additional context to include with the prompt.
+    description: Optional injected context to include with the prompt.
     required: false
     default: ""
   llm_base_url:
-    description: OpenAI-compatible LLM base URL.
+    description: OpenAI-compatible LLM base URL. The action normalizes root and `/v1` endpoints to chat completions.
     required: false
     default: ""
   llm_api_key:
@@ -34,25 +34,29 @@ inputs:
     required: false
     default: "true"
   fail_on_findings:
-    description: Fail the step when the generated report contains findings or a non-pass verdict.
+    description: Fail the step when the generated response signals attention or blocking issues.
     required: false
     default: "false"
   comment_marker:
-    description: Stable HTML marker used to update one comment instead of spamming duplicates.
+    description: Stable HTML marker used to update one comment instead of creating duplicates.
     required: false
-    default: "<!-- agentic-run -->"
+    default: "<!-- agentic-runner -->"
   dry_run:
     description: Skip posting a PR comment and only emit outputs.
     required: false
     default: "false"
   mock_response_file:
-    description: Optional path to a file containing a raw OpenAI-style response payload for validation.
+    description: Optional path to a file containing a raw JSON response payload for tests and local validation.
     required: false
     default: ""
   context_mode:
     description: Context strategy to use. diff, full, hybrid, or agentic.
     required: false
     default: diff
+  focus_paths:
+    description: Comma or newline separated list of files to focus the scan on.
+    required: false
+    default: ""
   extra_context_paths:
     description: Comma or newline separated list of file paths to always include.
     required: false
@@ -67,10 +71,10 @@ inputs:
     default: "1"
 
 outputs:
-  verdict:
-    description: The parsed verdict from the model.
-  finding_count:
-    description: Number of findings in the report.
+  signal:
+    description: Signal from the model response.
+  answer:
+    description: Direct answer text rendered into the comment.
   comment_body:
     description: Rendered Markdown comment body.
   comment_url:

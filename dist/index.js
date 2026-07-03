@@ -23937,11 +23937,21 @@ async function loadFiles(repoRoot, paths, maxChars) {
 async function fetchRepoContext(inputs) {
   const repoRoot = (await runGit(["rev-parse", "--show-toplevel"], process.cwd())).trim();
   const { baseSha, headSha } = resolveBaseHead();
-  const changedFilesRaw = await runGit(["diff", "--name-only", baseSha, headSha], repoRoot);
+  const focusPaths = inputs.focusPaths.length > 0 ? [...new Set(inputs.focusPaths.map((item) => item.trim()).filter(Boolean))] : [];
+  const targetPaths = focusPaths.length > 0 ? focusPaths : void 0;
+  try {
+    await runGit(["fetch", "--no-tags", "--depth=1", "origin", baseSha, headSha], repoRoot);
+  } catch {
+  }
+  const changedFilesRaw = targetPaths ? targetPaths.join("\n") : await runGit(["diff", "--name-only", baseSha, headSha], repoRoot);
   const changedFiles = changedFilesRaw.split("\n").map((item) => item.trim()).filter(Boolean);
-  const diffArgs = ["diff", "--unified=0", baseSha, headSha, "--", ...changedFiles];
+  const diffArgs = ["diff", "--unified=0", baseSha, headSha, "--", ...targetPaths ?? changedFiles];
   const diffText = changedFiles.length > 0 ? await runGit(diffArgs, repoRoot) : await runGit(["diff", "--unified=0", baseSha, headSha], repoRoot);
-  const loadedPaths = inputs.contextMode === "full" || inputs.contextMode === "hybrid" ? [.../* @__PURE__ */ new Set([...inputs.extraContextPaths, ...changedFiles])] : inputs.extraContextPaths;
+  const loadedPaths = [.../* @__PURE__ */ new Set([
+    ...inputs.extraContextPaths,
+    ...focusPaths,
+    ...inputs.contextMode === "full" || inputs.contextMode === "hybrid" ? changedFiles : []
+  ])];
   const extraFiles = loadedPaths.length > 0 ? await loadFiles(repoRoot, loadedPaths, inputs.maxFileChars) : [];
   return { repoRoot, baseSha, headSha, changedFiles, diffText, extraFiles };
 }
@@ -23996,20 +24006,30 @@ function stripCodeFence(value) {
   }
   return trimmed;
 }
-function parseReport(content) {
+function normalizeSignal(value) {
+  if (value === "blocked") return "blocked";
+  if (value === "attention" || value === "warn") return "attention";
+  return "success";
+}
+function mapFindingsToHighlights(findings) {
+  return findings.map((finding) => {
+    const title = String(finding.title ?? "").trim();
+    const details = String(finding.details ?? "").trim();
+    const recommendation = String(finding.recommendation ?? "").trim();
+    return [title, details, recommendation].filter(Boolean).join(" \u2014 ");
+  }).filter(Boolean);
+}
+function parseResponse(content) {
   const payload = JSON.parse(stripCodeFence(content));
+  const findings = Array.isArray(payload.findings) ? payload.findings : [];
+  const highlights = Array.isArray(payload.highlights) ? payload.highlights.map(String).filter(Boolean) : mapFindingsToHighlights(findings);
   return {
-    title: String(payload.title ?? "Agentic Run Report"),
-    summary: String(payload.summary ?? ""),
-    verdict: payload.verdict === "fail" || payload.verdict === "warn" ? payload.verdict : "pass",
-    findings: Array.isArray(payload.findings) ? payload.findings.map((finding) => ({
-      severity: finding.severity ?? "medium",
-      title: String(finding.title ?? ""),
-      details: String(finding.details ?? ""),
-      recommendation: String(finding.recommendation ?? "")
-    })) : [],
-    next_steps: Array.isArray(payload.next_steps) ? payload.next_steps.map(String) : [],
-    notes: Array.isArray(payload.notes) ? payload.notes.map(String) : [],
+    title: String(payload.title ?? "Agentic Runner Response"),
+    answer: String(payload.answer ?? payload.summary ?? ""),
+    signal: normalizeSignal(payload.signal ?? payload.verdict),
+    highlights,
+    next_steps: Array.isArray(payload.next_steps) ? payload.next_steps.map(String).filter(Boolean) : [],
+    notes: Array.isArray(payload.notes) ? payload.notes.map(String).filter(Boolean) : [],
     requests: Array.isArray(payload.requests) ? payload.requests.map((request) => ({
       path: String(request.path ?? ""),
       reason: String(request.reason ?? ""),
@@ -24019,20 +24039,23 @@ function parseReport(content) {
 }
 function buildSystemPrompt() {
   return [
-    "You are a disciplined review and reporting assistant.",
-    "Return ONLY valid JSON.",
-    "Shape:",
+    "You are a disciplined LLM workflow assistant.",
+    "Answer the user request directly and concisely; do not use a report layout.",
+    "Return ONLY valid JSON in this shape:",
     "{",
     '  "title": string,',
-    '  "summary": string,',
-    '  "verdict": "pass" | "warn" | "fail",',
-    '  "findings": [{ "severity": "critical" | "high" | "medium" | "low", "title": string, "details": string, "recommendation": string }],',
+    '  "answer": string,',
+    '  "signal": "success" | "attention" | "blocked",',
+    '  "highlights": [string],',
     '  "next_steps": [string],',
     '  "notes": [string],',
-    '  "requests"?: [{ "path": string, "reason": string, "mode"?: "full" | "excerpt" | "diff" }]',
+    '  "requests"?: [{ "path": string, "reason": string, "mode"?: "full" | "snippet" | "diff" }]',
     "}",
-    "Keep it concise, specific, and suitable for a GitHub PR comment.",
-    "If you need more file contents, populate requests with the exact file paths and why they are needed."
+    "Use answer for the direct response the user asked for.",
+    "Use highlights for short bullets or key observations.",
+    "Use next_steps only when there is a real follow-up action.",
+    "If you need more file contents, populate requests with exact file paths and why they are needed.",
+    "Keep the output suitable for a GitHub PR comment."
   ].join("\n");
 }
 function buildMessages(prompt, context2, followUp) {
@@ -24048,8 +24071,21 @@ ${context2}`;
     { role: "user", content: userContent }
   ];
 }
+function buildChatCompletionsUrl(baseUrl) {
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  if (!trimmed) {
+    return "/v1/chat/completions";
+  }
+  if (trimmed.endsWith("/chat/completions")) {
+    return trimmed;
+  }
+  if (/\/v\d+(?:\/)?$/i.test(trimmed)) {
+    return `${trimmed.replace(/\/+$/, "")}/chat/completions`;
+  }
+  return `${trimmed}/v1/chat/completions`;
+}
 async function callLlm(request, baseUrl, apiKey) {
-  const response = await fetch(`${baseUrl.replace(/\/$/, "")}/chat/completions`, {
+  const response = await fetch(buildChatCompletionsUrl(baseUrl), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -24065,103 +24101,61 @@ async function callLlm(request, baseUrl, apiKey) {
   if (!content) {
     throw new Error("LLM response did not include message content");
   }
-  return parseReport(content);
+  return parseResponse(content);
 }
 
 // src/render.ts
-var severityMeta = {
-  critical: { icon: "\u{1F7E5}", label: "CRITICAL" },
-  high: { icon: "\u{1F534}", label: "HIGH" },
-  medium: { icon: "\u{1F7E0}", label: "MEDIUM" },
-  low: { icon: "\u{1F7E2}", label: "LOW" }
-};
-var verdictMeta = {
-  fail: { icon: "\u26D4", label: "FAIL" },
-  warn: { icon: "\u26A0\uFE0F", label: "WARN" },
-  pass: { icon: "\u2705", label: "PASS" }
+var signalMeta = {
+  blocked: { icon: "\u26D4", label: "BLOCKED" },
+  attention: { icon: "\u26A0\uFE0F", label: "ATTENTION" },
+  success: { icon: "\u2705", label: "SUCCESS" }
 };
 function escapeCell(value) {
   return value.replace(/\|/g, "\\|").replace(/\r?\n/g, "<br>");
 }
-function countSeverities(report) {
-  return report.findings.reduce(
-    (acc, finding) => ({
-      ...acc,
-      [finding.severity]: acc[finding.severity] + 1
-    }),
-    { critical: 0, high: 0, medium: 0, low: 0 }
-  );
-}
-function formatVerdict(verdict) {
-  const meta = verdictMeta[verdict];
-  return `${meta.icon} **${meta.label}**`;
-}
-function formatSeverity(severity) {
-  const meta = severityMeta[severity];
-  return `${meta.icon} **${meta.label}**`;
-}
-function renderMarkdown(report) {
-  const findings = report.findings ?? [];
-  const nextSteps = report.next_steps ?? [];
-  const notes = report.notes ?? [];
-  const severityCounts = countSeverities(report);
-  const verdict = verdictMeta[report.verdict];
+function renderMarkdown(response) {
+  const highlights = response.highlights ?? [];
+  const nextSteps = response.next_steps ?? [];
+  const notes = response.notes ?? [];
+  const requests = response.requests ?? [];
+  const signal = signalMeta[response.signal];
   const lines = [];
-  lines.push(`# ${verdict.icon} ${report.title || "Agentic Run Report"}`);
+  lines.push(`# ${signal.icon} ${response.title || "Agentic Runner Response"}`);
   lines.push("");
-  lines.push("## \u{1F4CC} At a glance");
+  lines.push(`> ${signal.label}`);
   lines.push("");
-  lines.push("| Field | Value |");
-  lines.push("|---|---|");
-  lines.push(`| Verdict | ${formatVerdict(report.verdict)} |`);
-  lines.push(`| Total findings | **${findings.length}** |`);
-  lines.push(`| Critical | **${severityCounts.critical}** |`);
-  lines.push(`| High | **${severityCounts.high}** |`);
-  lines.push(`| Medium | **${severityCounts.medium}** |`);
-  lines.push(`| Low | **${severityCounts.low}** |`);
-  lines.push("");
-  if (report.summary) {
-    lines.push("## \u{1F9ED} Executive summary");
+  if (response.answer) {
+    lines.push("## Answer");
     lines.push("");
-    lines.push(`> ${report.summary}`);
+    lines.push(response.answer.trim());
     lines.push("");
   }
-  lines.push("## \u{1F6A8} Findings");
-  lines.push("");
-  if (findings.length > 0) {
-    lines.push("| # | Severity | Finding | Why it matters | Recommendation |");
-    lines.push("|---|---|---|---|---|");
-    findings.forEach((finding, index) => {
-      lines.push(
-        `| ${index + 1} | ${formatSeverity(finding.severity)} | **${escapeCell(finding.title)}** | ${escapeCell(finding.details)} | ${escapeCell(finding.recommendation)} |`
-      );
-    });
+  if (highlights.length > 0) {
+    lines.push("## Highlights");
     lines.push("");
-    lines.push("### Detail cards");
-    lines.push("");
-    findings.forEach((finding, index) => {
-      lines.push(`#### ${formatSeverity(finding.severity)} Finding ${index + 1}: ${finding.title}`);
-      lines.push("");
-      lines.push(`> **Why it matters:** ${finding.details}`);
-      lines.push(`> **Recommended fix:** ${finding.recommendation}`);
-      lines.push("");
-    });
-  } else {
-    lines.push("\u2705 No findings reported.");
+    for (const item of highlights) {
+      lines.push(`- ${item}`);
+    }
     lines.push("");
   }
-  lines.push("## \u2705 Next steps");
-  lines.push("");
+  if (requests.length > 0) {
+    lines.push("## Follow-up requests");
+    lines.push("");
+    requests.forEach((request, index) => {
+      lines.push(`- ${index + 1}. **${escapeCell(request.path)}** \u2014 ${escapeCell(request.reason)}`);
+    });
+    lines.push("");
+  }
   if (nextSteps.length > 0) {
+    lines.push("## Suggested next steps");
+    lines.push("");
     for (const step of nextSteps) {
       lines.push(`- [ ] ${step}`);
     }
-  } else {
-    lines.push("- [ ] None");
+    lines.push("");
   }
-  lines.push("");
   if (notes.length > 0) {
-    lines.push("## \u{1F4DD} Notes");
+    lines.push("## Notes");
     lines.push("");
     for (const note of notes) {
       lines.push(`- ${note}`);
@@ -24187,10 +24181,9 @@ ${inputs.context}` : ""));
     },
     initialMessages
   );
-  let report = first.report;
-  let round = 0;
-  while (inputs.contextMode === "agentic" && Array.isArray(report.requests) && report.requests.length > 0 && round < inputs.maxFollowUpRounds) {
-    const requestedPaths = report.requests.map((request) => request.path).filter(Boolean);
+  let response = first.response;
+  if (inputs.contextMode === "agentic" && Array.isArray(response.requests) && response.requests.length > 0 && inputs.maxFollowUpRounds > 0) {
+    const requestedPaths = response.requests.map((request) => request.path).filter(Boolean);
     const requestedFiles = await actualDeps.loadFiles(repoContext.repoRoot, requestedPaths, inputs.maxFileChars);
     const followUp = [
       "The model requested additional file context.",
@@ -24202,7 +24195,7 @@ ${inputs.context}` : ""));
         "```",
         ""
       ]),
-      "Return a complete final JSON report without mentioning this follow-up exchange."
+      "Return a complete final JSON response without mentioning this follow-up exchange."
     ].join("\n");
     const followUpMessages = buildMessages(inputs.prompt, contextNarrative + (inputs.context ? `
 
@@ -24215,19 +24208,18 @@ ${inputs.context}` : ""), followUp);
       },
       followUpMessages
     );
-    report = second.report;
-    round += 1;
+    response = second.response;
   }
-  const markdown = renderMarkdown(report);
-  return { report, markdown, repoRoot: repoContext.repoRoot };
+  const markdown = renderMarkdown(response);
+  return { response, markdown, repoRoot: repoContext.repoRoot };
 }
 function parseInputs() {
   const contextMode = (core.getInput("context_mode") || "diff").trim();
   return {
     prompt: core.getInput("prompt", { required: true }),
     context: core.getInput("context"),
-    llmBaseUrl: core.getInput("llm_base_url", { required: true }),
-    llmApiKey: core.getInput("llm_api_key", { required: true }),
+    llmBaseUrl: core.getInput("llm_base_url"),
+    llmApiKey: core.getInput("llm_api_key"),
     model: core.getInput("model") || "openai/gpt-4o-mini",
     prNumber: (() => {
       const raw = core.getInput("pr_number");
@@ -24237,22 +24229,23 @@ function parseInputs() {
     })(),
     postComment: core.getInput("post_comment") !== "false",
     failOnFindings: core.getInput("fail_on_findings") === "true",
-    commentMarker: core.getInput("comment_marker") || "<!-- agentic-run -->",
+    commentMarker: core.getInput("comment_marker") || "<!-- agentic-runner -->",
     dryRun: core.getInput("dry_run") === "true",
     mockResponseFile: core.getInput("mock_response_file"),
     contextMode: ["diff", "full", "hybrid", "agentic"].includes(contextMode) ? contextMode : "diff",
+    focusPaths: parsePathList(core.getInput("focus_paths")),
     extraContextPaths: parsePathList(core.getInput("extra_context_paths")),
     maxFileChars: Number(core.getInput("max_file_chars") || "12000"),
     maxFollowUpRounds: Number(core.getInput("max_follow_up_rounds") || "1")
   };
 }
-function parseMockReport(path2) {
+function parseMockResponse(path2) {
   const raw = require("node:fs").readFileSync(path2, "utf8");
   const parsed = JSON.parse(raw);
   if (parsed?.choices?.[0]?.message?.content) {
-    return parseReport(parsed.choices[0].message.content);
+    return parseResponse(parsed.choices[0].message.content);
   }
-  return parseReport(raw);
+  return parseResponse(raw);
 }
 async function buildDeps(inputs) {
   return {
@@ -24260,8 +24253,8 @@ async function buildDeps(inputs) {
     loadFiles,
     chat: async (request, _messages) => {
       if (inputs.mockResponseFile) {
-        const report2 = parseMockReport(inputs.mockResponseFile);
-        return { report: report2, rawContent: JSON.stringify(report2) };
+        const response2 = parseMockResponse(inputs.mockResponseFile);
+        return { response: response2, rawContent: JSON.stringify(response2) };
       }
       if (!inputs.llmBaseUrl) {
         throw new Error("llm_base_url is required");
@@ -24269,8 +24262,8 @@ async function buildDeps(inputs) {
       if (!inputs.llmApiKey) {
         throw new Error("llm_api_key is required");
       }
-      const report = await callLlm(request, inputs.llmBaseUrl, inputs.llmApiKey);
-      return { report, rawContent: JSON.stringify(report) };
+      const response = await callLlm(request, inputs.llmBaseUrl, inputs.llmApiKey);
+      return { response, rawContent: JSON.stringify(response) };
     }
   };
 }
@@ -24279,8 +24272,8 @@ async function main() {
     const inputs = parseInputs();
     const deps = await buildDeps(inputs);
     const result = await executeReview(inputs, deps);
-    core.setOutput("verdict", result.report.verdict);
-    core.setOutput("finding_count", String(result.report.findings?.length ?? 0));
+    core.setOutput("signal", result.response.signal);
+    core.setOutput("answer", result.response.answer);
     core.setOutput("comment_body", result.markdown);
     if (inputs.postComment && !inputs.dryRun) {
       const octokit = github.getOctokit(core.getInput("github_token") || process.env.GITHUB_TOKEN || "");
@@ -24315,8 +24308,8 @@ ${result.markdown}`;
         }
       }
     }
-    if (inputs.failOnFindings && (result.report.verdict !== "pass" || (result.report.findings?.length ?? 0) > 0)) {
-      core.setFailed("agentic-run report indicates findings");
+    if (inputs.failOnFindings && result.response.signal !== "success") {
+      core.setFailed("agentic-runner response indicates attention is needed");
     }
   } catch (error) {
     core.setFailed(error.message);

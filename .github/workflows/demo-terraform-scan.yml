@@ -1,0 +1,41 @@
+name: Demo Terraform answer
+
+on:
+  pull_request:
+    paths:
+      - 'examples/terraform/**'
+      - 'docs/terraform-review-guidance.md'
+      - '.github/workflows/demo-terraform-scan.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comment with answer
+        uses: ./
+        with:
+          prompt: |
+            Count the words changed in this PR's example Terraform file and summarize the comment-worthy issues in a direct answer.
+            Do not format the result like a report template; answer the question plainly and keep it PR-comment friendly.
+          context: |
+            This is the agentic-runner demo workflow.
+            The repository includes a deliberate Terraform example change for the workflow to inspect.
+            The model should answer directly, not with a report template.
+          context_mode: diff
+          focus_paths: |
+            examples/terraform/main.tf
+          extra_context_paths: |
+            docs/terraform-review-guidance.md
+          llm_base_url: ${{ secrets.BIFROST_ENDPOINT }}
+          llm_api_key: ${{ secrets.BIFROST_VIRTUAL_KEY }}
+          github_token: ${{ github.token }}
+          pr_number: ${{ github.event.pull_request.number }}
+          post_comment: true
+          fail_on_findings: false

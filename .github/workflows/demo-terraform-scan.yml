@@ -18,21 +18,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Comment with answer
+      - name: Comment with agentic security report
         uses: ./
         with:
           prompt: |
-            Count the words changed in this PR's example Terraform file and summarize the comment-worthy issues in a direct answer.
-            Do not format the result like a report template; answer the question plainly and keep it PR-comment friendly.
+            Perform a Terraform governance security review of the changed files using the repository governance docs as the source of truth.
+            Prioritize public exposure, missing ownership metadata, hardcoded secrets, and operational safeguards.
+            If the changed file references shared locals, modules, variables, or stateful resources, request the exact Terraform file you need before finalizing the review.
+            Return a concise report with a verdict, findings, and next steps that can be posted as a PR comment.
           context: |
-            This is the agentic-runner demo workflow.
-            The repository includes a deliberate Terraform example change for the workflow to inspect.
-            The model should answer directly, not with a report template.
-          context_mode: diff
+            This is the agentic-runner Terraform governance demo.
+            The rules live in docs/terraform-review-guidance.md.
+            Review the changed Terraform files first and use additional file requests only when necessary.
+          context_mode: agentic
           focus_paths: |
             examples/terraform/main.tf
           extra_context_paths: |
             docs/terraform-review-guidance.md
+            examples/terraform/locals.tf
+            examples/terraform/stateful.tf
           llm_base_url: ${{ secrets.BIFROST_ENDPOINT }}
           llm_api_key: ${{ secrets.BIFROST_VIRTUAL_KEY }}
           github_token: ${{ github.token }}

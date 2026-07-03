@@ -1,10 +1,20 @@
-# Terraform review guidance
+# Terraform governance rules
 
-The demo workflow answers a question about the example Terraform fixture and writes a direct PR comment.
+Use this document as the source of truth for Terraform security scanning.
 
-Demo rules:
+## Review requirements
 
-- flag any public ingress exposure from `0.0.0.0/0`
-- flag missing `owner` tags on resources
-- keep the answer short and actionable
-- prefer one PR comment that gets updated on reruns instead of creating duplicates
+- Flag missing tags (`owner`, `cost_center`, `data_classification`, `service`) as **high severity** when they are required by the repo's tagging standard.
+- Flag risky public exposure, especially `0.0.0.0/0`, open ingress from the internet, or broad egress that is not justified by the change.
+- Flag hardcoded secrets, access keys, tokens, or credentials anywhere in Terraform or supporting files.
+- Flag stateful resources that lack `prevent_destroy` or equivalent explicit protection when deletion would be risky.
+- Focus on the changed Terraform files first, then use the repo's governance rules and shared Terraform context to confirm whether additional files introduce hidden risk.
+- In agentic mode, request exact file paths when more Terraform context is needed to complete the review.
+- Produce a concise, well-formatted PR comment with a verdict, findings, and next steps.
+
+## Comment style
+
+- Keep the summary short and specific.
+- Prefer concrete remediation advice over generic warnings.
+- Call out when more context was required and list the files that were requested.
+- Do not invent policy that is not in this file.

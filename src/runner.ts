@@ -118,7 +118,9 @@ export async function main(): Promise<void> {
     const result = await executeReview(inputs, deps);
 
     core.setOutput('signal', result.response.signal);
-    core.setOutput('answer', result.response.answer);
+    core.setOutput('answer', result.response.summary || result.response.answer);
+    core.setOutput('verdict', result.response.verdict || 'pass');
+    core.setOutput('finding_count', String(result.response.findings?.length ?? 0));
     core.setOutput('comment_body', result.markdown);
 
     if (inputs.postComment && !inputs.dryRun) {
@@ -153,7 +155,7 @@ export async function main(): Promise<void> {
       }
     }
 
-    if (inputs.failOnFindings && result.response.signal !== 'success') {
+    if (inputs.failOnFindings && ((result.response.verdict && result.response.verdict !== 'pass') || (result.response.findings?.length ?? 0) > 0)) {
       core.setFailed('agentic-runner response indicates attention is needed');
     }
   } catch (error) {

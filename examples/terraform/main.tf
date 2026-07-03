@@ -21,8 +21,5 @@ resource "aws_security_group" "demo" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = {
-    service    = "agentic-runner-demo"
-    environment = "demo"
-  }
+  tags = local.common_tags
 }
